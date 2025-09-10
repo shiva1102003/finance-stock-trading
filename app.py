@@ -7,7 +7,8 @@ from tempfile import mkdtemp
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime
 
-from helpers import apology, login_required, lookup, inr, predict_price
+# ✅ Updated import for helpers
+from helpers import apology, login_required, fetch_stock_data as lookup, inr, predict_price
 
 # ------------------- CONFIGURATION -------------------
 app = Flask(__name__)
@@ -35,16 +36,15 @@ Session(app)
 # Database
 db = SQL("sqlite:///finance.db")
 
-# Ensure API key is set
-api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
-if not api_key:
-    raise RuntimeError("ALPHA_VANTAGE_API_KEY not set in environment")
+# ✅ Removed Alpha Vantage API key requirement (not needed anymore)
+
 
 # ------------------- ROUTES -------------------
 
 @app.route("/home")
 def home():
     return render_template("index.html")
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -67,10 +67,12 @@ def login():
         return redirect("/")
     return render_template("login.html")
 
+
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect("/home")
+
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -93,6 +95,7 @@ def register():
         flash("Registration successful! Login now.")
         return redirect("/login")
     return render_template("register.html")
+
 
 @app.route("/")
 @login_required
@@ -121,8 +124,37 @@ def index():
                            stock_value=inr(stock_value), grand_total=inr(grand_total),
                            start_value=inr(start_value), end_value=inr(grand_total), profit_loss=inr(profit_loss))
 
-# --------- Other routes like /buy, /sell, /quote, /history, /predict ---------
-# Keep your existing implementations as is; they are compatible.
+
+# --------- QUOTE ROUTE ---------
+@app.route("/quote", methods=["GET", "POST"])
+@login_required
+def quote():
+    if request.method == "POST":
+        symbol = request.form.get("symbol")
+        stock = lookup(symbol)
+        if not stock:
+            flash("Invalid stock symbol.")
+            return redirect("/quote")
+        return render_template("quoted.html", stock=stock)
+    return render_template("quote.html")
+
+
+# --------- PREDICT ROUTE ---------
+@app.route("/predict", methods=["GET", "POST"])
+@login_required
+def predict():
+    if request.method == "POST":
+        symbol = request.form.get("symbol")
+        prediction = predict_price(symbol)
+        if not prediction:
+            flash("Prediction failed. Try another symbol.")
+            return redirect("/predict")
+        return render_template("prediction.html", symbol=symbol.upper(), prediction=prediction)
+    return render_template("predict.html")
+
+
+# --------- BUY, SELL, HISTORY (keep your existing implementations) ---------
+
 
 # ------------------- ERROR HANDLER -------------------
 from werkzeug.exceptions import default_exceptions, HTTPException, InternalServerError
@@ -134,6 +166,7 @@ def errorhandler(e):
 
 for code in default_exceptions:
     app.errorhandler(code)(errorhandler)
+
 
 # ------------------- RUN -------------------
 if __name__ == "__main__":
